@@ -26,15 +26,22 @@ export default function UploadContent() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
+  const [isClient, setIsClient] = useState(false);
   
   const { user, loading } = useAuth();
   const router = useRouter();
+
+  // Fix hydration mismatch by marking when we're on the client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (!loading) {
       if (!user) {
         router.push('/auth/login');
-      } else {
+      } else if (typeof window !== 'undefined') {
+        // Only fetch departments on the client side
         fetchDepartments();
       }
     }
@@ -78,10 +85,16 @@ export default function UploadContent() {
     try {
       setIsLoadingSubjects(true);
       setError(''); // Clear any previous errors
-      console.log('Fetching subjects for department:', departmentId);
+      
+      if (typeof window !== 'undefined') {
+        // Only log on client side
+        console.log('Fetching subjects for department:', departmentId);
+      }
       
       if (!departmentId) {
-        console.warn('No department ID provided for subject fetch');
+        if (typeof window !== 'undefined') {
+          console.warn('No department ID provided for subject fetch');
+        }
         setSubjects([]);
         setIsLoadingSubjects(false);
         return;
@@ -89,13 +102,13 @@ export default function UploadContent() {
       
       // Find department name for better logs
       const selectedDept = departments.find(d => d._id === departmentId);
-      if (selectedDept) {
+      if (selectedDept && typeof window !== 'undefined') {
         console.log(`Selected department: ${selectedDept.name} (${selectedDept.code})`);
       }
       
       // Check if ENTC department and handle specially
       const isEntcDept = selectedDept && (selectedDept.code === 'ENTC' || selectedDept.name.includes('ENTC'));
-      if (isEntcDept) {
+      if (isEntcDept && typeof window !== 'undefined') {
         console.log('ENTC department detected - watching for potential issues');
       }
       
@@ -108,15 +121,22 @@ export default function UploadContent() {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API error response:', errorText);
+        if (typeof window !== 'undefined') {
+          console.error('API error response:', errorText);
+        }
         throw new Error(`Failed to fetch subjects: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log(`Fetched ${data.length} subjects for department ID ${departmentId}`);
+      
+      if (typeof window !== 'undefined') {
+        console.log(`Fetched ${data.length} subjects for department ID ${departmentId}`);
+      }
       
       if (!data || !Array.isArray(data)) {
-        console.warn('Subjects data is not an array:', data);
+        if (typeof window !== 'undefined') {
+          console.warn('Subjects data is not an array:', data);
+        }
         setSubjects([]);
         setIsLoadingSubjects(false);
         return;
@@ -124,23 +144,29 @@ export default function UploadContent() {
       
       // Special handling for ENTC subjects - common issue area
       if (data.length === 0 && isEntcDept) {
-        console.warn('No subjects returned for ENTC department, but we expect some - this may be an issue');
+        if (typeof window !== 'undefined') {
+          console.warn('No subjects returned for ENTC department, but we expect some - this may be an issue');
+        }
         setError(`No subjects found for ${selectedDept.name} department. Use the debug button below to try a different approach.`);
       }
       
-      // Log each subject for debugging
-      data.forEach((subject, index) => {
-        console.log(`Subject ${index}:`, {
-          id: subject._id || 'No ID',
-          name: subject.name || 'No name',
-          code: subject.code || 'No code',
-          department: subject.department || 'No department'
+      // Log each subject for debugging - only on client
+      if (typeof window !== 'undefined') {
+        data.forEach((subject, index) => {
+          console.log(`Subject ${index}:`, {
+            id: subject._id || 'No ID',
+            name: subject.name || 'No name',
+            code: subject.code || 'No code',
+            department: subject.department || 'No department'
+          });
         });
-      });
+      }
       
       setSubjects(data);
     } catch (err) {
-      console.error('Error fetching subjects:', err);
+      if (typeof window !== 'undefined') {
+        console.error('Error fetching subjects:', err);
+      }
       setError('Error loading subjects: ' + (err.message || 'Unknown error'));
       setSubjects([]); // Reset subjects on error
     } finally {
@@ -151,22 +177,127 @@ export default function UploadContent() {
   const fetchChapters = async (subjectId) => {
     try {
       setIsLoadingChapters(true);
-      const response = await fetch(`/api/chapters?subject=${subjectId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch chapters');
+      setError(''); // Clear any previous errors
+      
+      if (typeof window !== 'undefined') {
+        // Only log on client side
+        console.log('Fetching chapters for subject:', subjectId);
       }
+      
+      if (!subjectId) {
+        if (typeof window !== 'undefined') {
+          console.warn('No subject ID provided for chapter fetch');
+        }
+        setChapters([]);
+        setIsLoadingChapters(false);
+        return;
+      }
+      
+      // Find subject name for better logs
+      const selectedSubject = subjects.find(s => s._id === subjectId);
+      if (selectedSubject && typeof window !== 'undefined') {
+        console.log(`Selected subject: ${selectedSubject.name} (${selectedSubject.code || 'No code'})`);
+      }
+      
+      const response = await fetch(`/api/chapters?subject=${subjectId}`, {
+        headers: {
+          'x-content-upload': 'true'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (typeof window !== 'undefined') {
+          console.error('API error response for chapters:', errorText);
+          console.error(`Status: ${response.status} ${response.statusText}`);
+          
+          // Try to parse the error if it's JSON
+          try {
+            const errorJson = JSON.parse(errorText);
+            console.error('Parsed error:', errorJson);
+            setError(`Error loading chapters: ${errorJson.error || errorJson.message || 'Unknown error'}`);
+          } catch (e) {
+            // Not JSON, use as is
+            setError(`Error loading chapters: ${response.status} ${response.statusText}`);
+          }
+        }
+        
+        setChapters([]);
+        return; // Exit early to prevent throwing error, we've already set the error state
+      }
+      
       const data = await response.json();
+      
+      if (typeof window !== 'undefined') {
+        console.log(`Fetched ${data.length} chapters for subject ID ${subjectId}`);
+      }
+      
+      if (!data || !Array.isArray(data)) {
+        if (typeof window !== 'undefined') {
+          console.warn('Chapters data is not an array:', data);
+        }
+        setChapters([]);
+        setIsLoadingChapters(false);
+        return;
+      }
+      
+      // Log each chapter for debugging - only on client
+      if (typeof window !== 'undefined' && data.length > 0) {
+        data.forEach((chapter, index) => {
+          console.log(`Chapter ${index}:`, {
+            id: chapter._id || 'No ID',
+            title: chapter.title || 'No title',
+            subject: chapter.subject || 'No subject'
+          });
+        });
+      } else if (typeof window !== 'undefined') {
+        console.log('No chapters found for this subject');
+      }
+      
       setChapters(data);
-      setIsLoadingChapters(false);
     } catch (err) {
-      setError('Error loading chapters: ' + err.message);
+      if (typeof window !== 'undefined') {
+        console.error('Error fetching chapters:', err);
+      }
+      setError('Error loading chapters: ' + (err.message || 'Unknown error'));
+      setChapters([]); // Reset chapters on error
+    } finally {
       setIsLoadingChapters(false);
     }
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData(prev => {
+      const newFormData = { ...prev, [name]: value };
+      
+      // Clear chapter selection when subject changes
+      if (name === 'subject' && prev.subject !== value) {
+        newFormData.chapter = '';
+        
+        // Fetch chapters for the new subject if one is selected
+        if (value) {
+          if (typeof window !== 'undefined') {
+            console.log('Subject changed, fetching chapters for:', value);
+          }
+          // Use setTimeout to ensure state update completes first
+          setTimeout(() => fetchChapters(value), 0);
+        } else {
+          // Clear chapters if no subject selected
+          setChapters([]);
+        }
+      }
+      
+      // Clear subject selection when department changes
+      if (name === 'department' && prev.department !== value) {
+        newFormData.subject = '';
+        newFormData.chapter = '';
+        setChapters([]);
+      }
+      
+      return newFormData;
+    });
+    
     setValidationErrors({ ...validationErrors, [name]: '' });
   };
 
@@ -298,7 +429,10 @@ export default function UploadContent() {
   const debugFetchSubjects = async () => {
     try {
       setError('');
-      console.log('DEBUG: Attempting direct fetch of all subjects');
+      
+      if (typeof window !== 'undefined') {
+        console.log('DEBUG: Attempting direct fetch of all subjects');
+      }
       
       const response = await fetch('/api/subjects', {
         headers: {
@@ -311,12 +445,17 @@ export default function UploadContent() {
       }
       
       const allSubjects = await response.json();
-      console.log('DEBUG: Total subjects in system:', allSubjects.length);
+      
+      if (typeof window !== 'undefined') {
+        console.log('DEBUG: Total subjects in system:', allSubjects.length);
+      }
       
       // Find ENTC department ID
       const entcDept = departments.find(d => d.code === 'ENTC' || d.name.includes('ENTC'));
       if (entcDept) {
-        console.log('DEBUG: Found ENTC department:', entcDept);
+        if (typeof window !== 'undefined') {
+          console.log('DEBUG: Found ENTC department:', entcDept);
+        }
         
         // Find all subjects for ENTC department
         const entcSubjects = allSubjects.filter(s => {
@@ -324,7 +463,9 @@ export default function UploadContent() {
           return deptId === entcDept._id;
         });
         
-        console.log(`DEBUG: Found ${entcSubjects.length} subjects for ENTC department:`, entcSubjects);
+        if (typeof window !== 'undefined') {
+          console.log(`DEBUG: Found ${entcSubjects.length} subjects for ENTC department:`, entcSubjects);
+        }
         
         if (entcSubjects.length > 0) {
           // Use these subjects directly
@@ -337,8 +478,64 @@ export default function UploadContent() {
         setError('Could not find ENTC department in the departments list');
       }
     } catch (err) {
-      console.error('DEBUG ERROR:', err);
+      if (typeof window !== 'undefined') {
+        console.error('DEBUG ERROR:', err);
+      }
       setError('Debug fetch failed: ' + err.message);
+    }
+  };
+
+  // Add a debug button for chapters
+  const debugFetchChapters = async () => {
+    try {
+      setError('');
+      
+      if (typeof window !== 'undefined') {
+        console.log('DEBUG: Attempting direct fetch of all chapters');
+      }
+      
+      const response = await fetch('/api/chapters', {
+        headers: {
+          'x-content-upload': 'true'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch all chapters: ${response.status}`);
+      }
+      
+      const allChapters = await response.json();
+      
+      if (typeof window !== 'undefined') {
+        console.log('DEBUG: Total chapters in system:', allChapters.length);
+      }
+      
+      if (formData.subject) {
+        // Filter chapters for the selected subject
+        const subjectChapters = allChapters.filter(c => {
+          const subjectId = typeof c.subject === 'object' ? c.subject?._id : c.subject;
+          return subjectId === formData.subject;
+        });
+        
+        if (typeof window !== 'undefined') {
+          console.log(`DEBUG: Found ${subjectChapters.length} chapters for selected subject:`, subjectChapters);
+        }
+        
+        if (subjectChapters.length > 0) {
+          // Use these chapters directly
+          setChapters(subjectChapters);
+          setSuccessMessage(`Found ${subjectChapters.length} chapters for subject through direct query`);
+        } else {
+          setError('No chapters found for this subject in the database');
+        }
+      } else {
+        setError('Please select a subject first');
+      }
+    } catch (err) {
+      if (typeof window !== 'undefined') {
+        console.error('DEBUG CHAPTERS ERROR:', err);
+      }
+      setError('Debug fetch for chapters failed: ' + err.message);
     }
   };
 
@@ -488,7 +685,8 @@ export default function UploadContent() {
                 <p className="text-xs text-gray-500">
                   {subjects.length > 0 ? `${subjects.length} subjects available` : ''}
                 </p>
-                {formData.department && subjects.length === 0 && (
+                {/* Only render the debug button on the client side */}
+                {isClient && formData.department && subjects.length === 0 && (
                   <button 
                     type="button"
                     onClick={debugFetchSubjects}
@@ -500,28 +698,49 @@ export default function UploadContent() {
               </div>
             </div>
 
-            {/* Chapter Selection */}
-            <div>
-              <label htmlFor="chapter" className="block text-sm font-medium text-gray-700">
-                Chapter (optional)
+            {/* Chapter Dropdown */}
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="chapter">
+                Chapter
               </label>
-              <select
-                id="chapter"
-                name="chapter"
-                value={formData.chapter}
-                onChange={handleChange}
-                disabled={!formData.subject || isLoadingChapters}
-                className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${(!formData.subject || isLoadingChapters) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <option value="">
-                  {isLoadingChapters ? 'Loading chapters...' : 'Select a chapter (optional)'}
+              <div className="flex items-center">
+                <select
+                  id="chapter"
+                  name="chapter"
+                  value={formData.chapter}
+                  onChange={handleChange}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  disabled={!formData.subject || isLoadingChapters}
+                >
+                  <option value="">
+                    {isLoadingChapters 
+                      ? "Loading chapters..." 
+                      : formData.subject 
+                        ? chapters.length > 0 
+                          ? "Select Chapter" 
+                          : "No chapters available" 
+                        : "Select a subject first"
+                  }
                 </option>
                 {chapters.map((chapter) => (
                   <option key={chapter._id} value={chapter._id}>
-                    {chapter.title}
+                    {typeof chapter.title === 'string' ? chapter.title : 'Unnamed chapter'}
                   </option>
                 ))}
-              </select>
+                </select>
+                <button
+                  type="button"
+                  onClick={debugFetchChapters}
+                  className="ml-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
+                >
+                  Debug Chapters
+                </button>
+              </div>
+              {formData.subject && chapters.length === 0 && !isLoadingChapters && (
+                <p className="text-sm text-orange-500 mt-1">
+                  No chapters found for this subject. Debug: Found {chapters.length} chapters.
+                </p>
+              )}
             </div>
 
             {/* Year Selection */}

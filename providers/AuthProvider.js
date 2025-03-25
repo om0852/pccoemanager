@@ -12,26 +12,26 @@ export const useAuth = () => useContext(AuthContext);
 
 // Provider component
 export function AuthProvider({ children }) {
-  const { data: session, status } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('loading');
   const router = useRouter();
 
   // Update user state when session changes
   useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
+    if (sessionStatus === 'loading') {
+      setStatus('loading');
       return;
     }
 
     if (session && session.user) {
       setUser(session.user);
+      setStatus('authenticated');
     } else {
       setUser(null);
+      setStatus('unauthenticated');
     }
-
-    setLoading(false);
-  }, [session, status]);
+  }, [session, sessionStatus]);
 
   // Login function
   const login = async (email, password) => {
@@ -86,7 +86,7 @@ export function AuthProvider({ children }) {
   // The context value
   const value = {
     user,
-    loading,
+    status,
     login,
     logout,
     hasRole,

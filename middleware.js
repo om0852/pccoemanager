@@ -47,6 +47,8 @@ export const config = {
     '/api/departments/:path*',
     '/api/subjects/:path*',
     '/api/content/:path*',
+    '/api/chapters/:path*',
+    '/api/dashboard/:path*',
     '/api/admin/:path*',
     '/api/master-admin/:path*'
   ],

@@ -1,36 +1,35 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import Navbar from '@/components/Navbar';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function DashboardLayout({ children }) {
-  const { user, loading } = useAuth();
+  const { user, status } = useAuth();
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (status === 'unauthenticated') {
       router.push('/auth/login');
+    } else if (status === 'authenticated') {
+      setIsLoading(false);
     }
-  }, [user, loading, router]);
+  }, [status, router]);
 
-  // Show loading state
-  if (loading || !user) {
+  if (status === 'loading' || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="h-screen flex justify-center items-center">
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <main className="py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {children}
-        </div>
+      <main className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+        {children}
       </main>
     </div>
   );

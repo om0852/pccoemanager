@@ -116,6 +116,17 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const subjectId = searchParams.get('subject');
     
+    // Check for content upload context
+    const isContentUpload = request.headers.get('x-content-upload') === 'true';
+    
+    console.log(`API: Chapters request from ${session.user.email} (${session.user.role})`);
+    if (subjectId) {
+      console.log(`API: Filtering chapters by subject ID: ${subjectId}`);
+    }
+    if (isContentUpload) {
+      console.log('API: Content upload context detected for chapters request');
+    }
+    
     const query = {};
     
     // Apply filters if provided
@@ -132,26 +143,38 @@ export async function GET(request) {
     
     // Teachers can only view chapters for subjects they teach
     if (session.user.role === 'teacher') {
-      // Get subjects this teacher teaches
-      const teacherSubjects = await Subject.find({ teachers: session.user.id }).select('_id');
-      const subjectIds = teacherSubjects.map(sub => sub._id);
+      console.log('API: Applying teacher filter to chapters query');
       
-      if (subjectId) {
-        if (!subjectIds.some(id => id.toString() === subjectId)) {
-          return NextResponse.json(
-            { error: 'Not authorized to view chapters for this subject' },
-            { status: 403 }
-          );
+      // Don't apply the strict teacher filter for content uploads
+      if (!isContentUpload) {
+        // Get subjects this teacher teaches
+        const teacherSubjects = await Subject.find({ teachers: session.user.id }).select('_id');
+        const subjectIds = teacherSubjects.map(sub => sub._id);
+        
+        if (subjectId) {
+          if (!subjectIds.some(id => id.toString() === subjectId)) {
+            return NextResponse.json(
+              { error: 'Not authorized to view chapters for this subject' },
+              { status: 403 }
+            );
+          }
+        } else {
+          query.subject = { $in: subjectIds };
         }
       } else {
-        query.subject = { $in: subjectIds };
+        console.log('API: Content upload context detected, showing all accessible chapters to teacher');
+        // For content uploads, no additional filtering needed beyond the subject filter
       }
     }
     // Admins can only see chapters in departments they created
     else if (session.user.role === 'admin') {
+      console.log('API: Applying admin department filter to chapters query');
+      
       // Get departments created by this admin
       const adminDepartments = await Department.find({ createdBy: session.user.id }).select('_id');
       const departmentIds = adminDepartments.map(dept => dept._id);
+      
+      console.log(`API: Admin has ${departmentIds.length} departments`);
       
       // Get subjects in these departments
       const departmentSubjects = await Subject.find({ 
@@ -161,7 +184,8 @@ export async function GET(request) {
       const subjectIds = departmentSubjects.map(sub => sub._id);
       
       if (subjectId) {
-        if (!subjectIds.some(id => id.toString() === subjectId)) {
+        if (!subjectIds.some(id => id.toString() === subjectId) && !isContentUpload) {
+          console.log(`API: Admin not authorized for subject's chapters ${subjectId}`);
           return NextResponse.json(
             { error: 'Not authorized to view chapters for this subject' },
             { status: 403 }
@@ -170,7 +194,11 @@ export async function GET(request) {
       } else {
         query.subject = { $in: subjectIds };
       }
+    } else if (session.user.role === 'master-admin') {
+      console.log('API: Master admin accessing chapters, no restrictions');
     }
+    
+    console.log('API: Final chapters query:', JSON.stringify(query));
     
     // Find chapters
     const chapters = await Chapter.find(query)
@@ -178,7 +206,40 @@ export async function GET(request) {
       .populate('createdBy', 'name email')
       .sort({ subject: 1, order: 1 });
     
-    return NextResponse.json(chapters);
+    // Process data to ensure stable format for SSR and client
+    const processedChapters = chapters.map(chapter => {
+      // Convert Mongoose document to plain object
+      const plainChapter = chapter.toObject ? chapter.toObject() : { ...chapter };
+      
+      // Ensure subject is always populated or has consistent format
+      if (plainChapter.subject && typeof plainChapter.subject === 'object') {
+        plainChapter.subject = {
+          _id: plainChapter.subject._id.toString(),
+          name: plainChapter.subject.name || '',
+          code: plainChapter.subject.code || '',
+        };
+      }
+      
+      // Ensure createdBy is always populated or has consistent format
+      if (plainChapter.createdBy && typeof plainChapter.createdBy === 'object') {
+        plainChapter.createdBy = {
+          _id: plainChapter.createdBy._id.toString(),
+          name: plainChapter.createdBy.name || '',
+          email: plainChapter.createdBy.email || '',
+        };
+      }
+      
+      // Convert _id to string to ensure stable format
+      if (plainChapter._id) {
+        plainChapter._id = plainChapter._id.toString();
+      }
+      
+      return plainChapter;
+    });
+    
+    console.log(`API: Returning ${processedChapters.length} chapters`);
+    
+    return NextResponse.json(processedChapters);
   } catch (error) {
     console.error('Error fetching chapters:', error);
     return NextResponse.json(

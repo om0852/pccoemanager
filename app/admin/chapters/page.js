@@ -5,15 +5,43 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 
+// Format date safely to avoid hydration mismatches
 const formatDate = (dateString) => {
-  const options = { year: 'numeric', month: 'short', day: 'numeric' };
-  return new Date(dateString).toLocaleDateString(undefined, options);
+  try {
+    if (!dateString) return '';
+    
+    // Use a more stable date format that doesn't depend on locale
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getMonth()];
+    const day = date.getDate();
+    
+    return `${month} ${day}, ${year}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Invalid date';
+  }
 };
 
 export default function ChaptersPage() {
+  // Add a state to track if we're on the client
+  const [isClient, setIsClient] = useState(false);
+  
+  // Data states
   const [chapters, setChapters] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [selectedSubject, setSelectedSubject] = useState('');
+  const [filteredSubjects, setFilteredSubjects] = useState([]);
+
+  // Filter states
+  const [filters, setFilters] = useState({
+    department: '',
+    year: '',
+    semester: '',
+    subject: ''
+  });
+
+  // UI states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleteId, setDeleteId] = useState(null);
@@ -21,22 +49,63 @@ export default function ChaptersPage() {
   const { user } = useAuth();
   const router = useRouter();
 
+  // Arrays for semester and year options
+  const semesterOptions = [1, 2, 3, 4, 5, 6, 7, 8];
+  const yearOptions = [1, 2, 3, 4];
+  
+  // Mark when component is mounted on client
   useEffect(() => {
-    fetchSubjects();
+    setIsClient(true);
   }, []);
 
+  // Load departments on component mount - only on the client side
   useEffect(() => {
-    if (selectedSubject) {
-      fetchChapters();
-    } else {
-      setChapters([]);
+    if (isClient) {
+      fetchDepartments();
     }
-  }, [selectedSubject]);
+  }, [isClient]);
 
-  const fetchSubjects = async () => {
+  // Filter subjects when department, year, or semester changes
+  useEffect(() => {
+    if (isClient) {
+      filterSubjects();
+    }
+  }, [filters.department, filters.year, filters.semester, subjects, isClient]);
+
+  // Fetch chapters when subject selection changes
+  useEffect(() => {
+    if (isClient && filters.subject) {
+      fetchChapters();
+    }
+  }, [filters.subject, isClient]);
+
+  const fetchDepartments = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/subjects');
+      setError('');
+      
+      const response = await fetch('/api/departments');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch departments');
+      }
+      
+      const data = await response.json();
+      setDepartments(data);
+      
+      // After fetching departments, fetch all subjects
+      await fetchAllSubjects();
+      
+      setLoading(false);
+    } catch (error) {
+      setError('Error loading departments: ' + (error.message || 'Unknown error'));
+      setLoading(false);
+    }
+  };
+
+  const fetchAllSubjects = async () => {
+    try {
+      const response = await fetch('/api/subjects?populate=department');
       
       if (!response.ok) {
         throw new Error('Failed to fetch subjects');
@@ -44,22 +113,80 @@ export default function ChaptersPage() {
       
       const data = await response.json();
       setSubjects(data);
+      setFilteredSubjects(data);
       
+      // If there are subjects, pre-select filters based on first subject
       if (data.length > 0) {
-        setSelectedSubject(data[0]._id);
+        const firstSubject = data[0];
+        const departmentId = typeof firstSubject.department === 'object' 
+          ? firstSubject.department?._id 
+          : firstSubject.department;
+        
+        setFilters(prev => ({
+          department: departmentId,
+          year: firstSubject.year,
+          semester: firstSubject.semester,
+          subject: firstSubject._id
+        }));
       }
-      
-      setLoading(false);
     } catch (error) {
-      setError(error.message);
-      setLoading(false);
+      setError('Error loading subjects: ' + (error.message || 'Unknown error'));
+    }
+  };
+
+  const filterSubjects = () => {
+    // Start with all subjects
+    let filtered = [...subjects];
+    
+    // Apply department filter if selected
+    if (filters.department) {
+      filtered = filtered.filter(subject => {
+        // Handle both populated and non-populated department data
+        const subjectDeptId = typeof subject.department === 'object' 
+          ? subject.department?._id 
+          : subject.department;
+        return subjectDeptId === filters.department;
+      });
+    }
+    
+    // Apply year filter if selected
+    if (filters.year) {
+      const yearNumber = parseInt(filters.year);
+      filtered = filtered.filter(subject => subject.year === yearNumber);
+    }
+    
+    // Apply semester filter if selected
+    if (filters.semester) {
+      const semesterNumber = parseInt(filters.semester);
+      filtered = filtered.filter(subject => subject.semester === semesterNumber);
+    }
+    
+    setFilteredSubjects(filtered);
+    
+    // If there's no matching subject for the current filters, clear the subject selection or select the first available
+    if (filtered.length > 0) {
+      // If the current selected subject is not in the filtered list, select the first one
+      if (!filtered.some(s => s._id === filters.subject)) {
+        setFilters(prev => ({ ...prev, subject: filtered[0]._id }));
+      }
+    } else {
+      // Clear subject selection if no subjects match the filters
+      setFilters(prev => ({ ...prev, subject: '' }));
     }
   };
 
   const fetchChapters = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/chapters?subject=${selectedSubject}`);
+      setError('');
+      
+      if (!filters.subject) {
+        setChapters([]);
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`/api/chapters?subject=${filters.subject}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch chapters');
@@ -69,8 +196,33 @@ export default function ChaptersPage() {
       setChapters(data);
       setLoading(false);
     } catch (error) {
-      setError(error.message);
+      setError('Error loading chapters: ' + (error.message || 'Unknown error'));
       setLoading(false);
+    }
+  };
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    
+    // Reset subsequent filters when changing a parent filter
+    if (name === 'department') {
+      setFilters({
+        department: value,
+        year: '',
+        semester: '',
+        subject: ''
+      });
+    } else if (name === 'year' || name === 'semester') {
+      setFilters(prev => ({
+        ...prev,
+        [name]: value,
+        subject: '' // Reset subject when year or semester changes
+      }));
+    } else {
+      setFilters(prev => ({
+        ...prev,
+        [name]: value
+      }));
     }
   };
 
@@ -99,21 +251,39 @@ export default function ChaptersPage() {
       setShowDeleteModal(false);
       setDeleteId(null);
     } catch (error) {
-      setError(error.message);
+      setError(error.message || 'An error occurred during deletion');
     }
   };
 
-  const handleSubjectChange = (e) => {
-    setSelectedSubject(e.target.value);
+  const resetFilters = () => {
+    setFilters({
+      department: '',
+      year: '',
+      semester: '',
+      subject: ''
+    });
+    setChapters([]);
   };
+
+  // Initial loading state - show this during SSR and early client-side rendering
+  if (!isClient) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">Manage Chapters</h1>
+        <div className="flex justify-center my-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Manage Chapters</h1>
-        {selectedSubject && (
+        {filters.subject && (
           <Link
-            href={`/admin/chapters/new?subject=${selectedSubject}`}
+            href={`/admin/chapters/new?subject=${filters.subject}`}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
             Add New Chapter
@@ -127,34 +297,123 @@ export default function ChaptersPage() {
         </div>
       )}
 
-      <div className="mb-6">
-        <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
-          Select Subject
-        </label>
-        <select
-          id="subject"
-          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-          value={selectedSubject}
-          onChange={handleSubjectChange}
-        >
-          <option value="">Select a subject</option>
-          {subjects.map((subject) => (
-            <option key={subject._id} value={subject._id}>
-              {subject.name} ({subject.code})
-            </option>
-          ))}
-        </select>
+      {/* Filter Section */}
+      <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 className="text-lg font-medium text-gray-800 mb-4">Filters</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Department Filter */}
+          <div>
+            <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-1">
+              Department
+            </label>
+            <select
+              id="department"
+              name="department"
+              value={filters.department}
+              onChange={handleFilterChange}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+            >
+              <option value="">All Departments</option>
+              {departments.map((dept) => (
+                <option key={dept._id} value={dept._id}>
+                  {dept.name} ({dept.code || ''})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Year Filter */}
+          <div>
+            <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
+              Year
+            </label>
+            <select
+              id="year"
+              name="year"
+              value={filters.year}
+              onChange={handleFilterChange}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              disabled={!filters.department}
+            >
+              <option value="">All Years</option>
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>
+                  Year {year}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Semester Filter */}
+          <div>
+            <label htmlFor="semester" className="block text-sm font-medium text-gray-700 mb-1">
+              Semester
+            </label>
+            <select
+              id="semester"
+              name="semester"
+              value={filters.semester}
+              onChange={handleFilterChange}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              disabled={!filters.department}
+            >
+              <option value="">All Semesters</option>
+              {semesterOptions.map((semester) => (
+                <option key={semester} value={semester}>
+                  Semester {semester}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Subject Filter */}
+          <div>
+            <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
+              Subject
+            </label>
+            <select
+              id="subject"
+              name="subject"
+              value={filters.subject}
+              onChange={handleFilterChange}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              disabled={filteredSubjects.length === 0}
+            >
+              <option value="">Select Subject</option>
+              {filteredSubjects.map((subject) => (
+                <option key={subject._id} value={subject._id}>
+                  {subject.name} ({subject.code || ''})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Reset Filters Button */}
+        <div className="mt-4 flex justify-end">
+          <button 
+            onClick={resetFilters}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+          >
+            Reset Filters
+          </button>
+        </div>
       </div>
 
+      {/* Status Messages */}
       {loading ? (
         <div className="flex justify-center my-8">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      ) : selectedSubject && chapters.length === 0 ? (
+      ) : !filters.subject ? (
+        <div className="text-center py-8 bg-gray-50 rounded-lg">
+          <p className="text-gray-500">Please select a subject to view its chapters</p>
+        </div>
+      ) : chapters.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg">
           <p className="text-gray-500">No chapters found for this subject</p>
           <Link
-            href={`/admin/chapters/new?subject=${selectedSubject}`}
+            href={`/admin/chapters/new?subject=${filters.subject}`}
             className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
           >
             Create First Chapter
@@ -234,8 +493,8 @@ export default function ChaptersPage() {
         </div>
       )}
 
-      {/* Confirmation Modal */}
-      {showDeleteModal && (
+      {/* Confirmation Modal - Only render on client */}
+      {isClient && showDeleteModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
           <div className="bg-white p-5 rounded-md shadow-lg max-w-md mx-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Deletion</h3>

@@ -4,12 +4,24 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { formatDate } from '@/lib/utils';
 
-// Helper function to format dates
+// Helper function to format dates safely
 const formatDate = (dateString) => {
-  const options = { year: 'numeric', month: 'short', day: 'numeric' };
-  return new Date(dateString).toLocaleDateString(undefined, options);
+  if (!dateString) return '';
+  
+  try {
+    // Use ISO string format for consistent rendering between server and client
+    // This avoids locale-specific formatting that can cause hydration errors
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getMonth()];
+    const day = date.getDate();
+    
+    return `${month} ${day}, ${year}`;
+  } catch (e) {
+    console.error('Date formatting error:', e);
+    return dateString || '';
+  }
 };
 
 // Get content type badge color

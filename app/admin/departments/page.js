@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Plus, Search, Edit, Trash2, Info, X, AlertTriangle, CheckCircle, Building } from 'lucide-react';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function AdminDepartmentManagement() {
   const [departments, setDepartments] = useState([]);
@@ -14,27 +16,29 @@ export default function AdminDepartmentManagement() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [departmentToDelete, setDepartmentToDelete] = useState(null);
   
-  const { user, loading, isAdmin } = useAuth();
+  const { user, status, isAdmin } = useAuth();
   const router = useRouter();
 
   // Filter departments based on search query
   const filteredDepartments = departments.filter(
-    dept => dept.name.toLowerCase().includes(searchQuery.toLowerCase())
+    dept => dept.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            dept.code?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   useEffect(() => {
     // Check if user is admin
-    if (!loading) {
+    if (status !== 'loading') {
       if (!user) {
-        router.push('/');
+        router.push('/auth/login');
       } else if (!isAdmin()) {
         router.push('/dashboard');
       } else {
         fetchDepartments();
       }
     }
-  }, [user, loading, router, isAdmin]);
+  }, [user, status, router, isAdmin]);
 
   const fetchDepartments = async () => {
     try {
@@ -53,6 +57,8 @@ export default function AdminDepartmentManagement() {
   };
 
   const confirmDelete = (id) => {
+    const deptToDelete = departments.find(dept => dept._id === id);
+    setDepartmentToDelete(deptToDelete);
     setDeleteId(id);
     setShowDeleteModal(true);
     setDeleteError('');
@@ -61,6 +67,7 @@ export default function AdminDepartmentManagement() {
   const cancelDelete = () => {
     setDeleteId(null);
     setShowDeleteModal(false);
+    setDepartmentToDelete(null);
   };
 
   const handleDelete = async () => {
@@ -71,13 +78,14 @@ export default function AdminDepartmentManagement() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to delete department');
+        throw new Error(errorData.error || 'Failed to delete department');
       }
 
       // Remove the deleted department from state
       setDepartments(departments.filter(dept => dept._id !== deleteId));
       setSuccessMessage('Department deleted successfully');
       setShowDeleteModal(false);
+      setDepartmentToDelete(null);
       
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -88,10 +96,10 @@ export default function AdminDepartmentManagement() {
     }
   };
 
-  if (loading) {
+  if (status === 'loading') {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -101,105 +109,166 @@ export default function AdminDepartmentManagement() {
   }
 
   return (
-    <div className="py-6 px-4 sm:px-6 lg:px-8">
-      <div className="sm:flex sm:items-center sm:justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Department Management</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage your departments
-          </p>
+    <div className="py-6">
+      {/* Page Header */}
+      <div className="mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center">
+            <Building className="h-8 w-8 text-blue-600 mr-3" />
+            <h1 className="text-2xl font-bold text-gray-900">Department Management</h1>
+          </div>
+          <div className="mt-4 md:mt-0">
+            <Link 
+              href="/admin/departments/new" 
+              className="inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Department
+            </Link>
+          </div>
         </div>
-        <div className="mt-4 sm:mt-0">
-          <Link href="/admin/departments/new" className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-            Add Department
-          </Link>
-        </div>
+        <p className="mt-2 text-sm text-gray-600">
+          Create and manage academic departments in your institution
+        </p>
       </div>
 
+      {/* Success and Error Messages */}
       {successMessage && (
-        <div className="mb-4 p-4 text-sm text-green-700 bg-green-100 rounded-lg">
-          {successMessage}
+        <div className="mb-6 flex items-center p-4 text-sm text-green-800 border-l-4 border-green-500 bg-green-50 rounded-md shadow-sm">
+          <CheckCircle className="h-5 w-5 mr-2 text-green-500" />
+          <span>{successMessage}</span>
+          <button 
+            onClick={() => setSuccessMessage('')}
+            className="ml-auto text-green-700 hover:text-green-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
       {error && (
-        <div className="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg">
-          {error}
+        <div className="mb-6 flex items-center p-4 text-sm text-red-800 border-l-4 border-red-500 bg-red-50 rounded-md shadow-sm">
+          <AlertTriangle className="h-5 w-5 mr-2 text-red-500" />
+          <span>{error}</span>
+          <button 
+            onClick={() => setError(null)}
+            className="ml-auto text-red-700 hover:text-red-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
-      <div className="mb-4">
-        <label htmlFor="search" className="sr-only">
-          Search
-        </label>
-        <div className="relative rounded-md shadow-sm">
-          <input
-            type="text"
-            name="search"
-            id="search"
-            className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:w-64 pr-10 sm:text-sm border-gray-300 rounded-md"
-            placeholder="Search departments"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
+      {/* Search and Controls */}
+      <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="relative w-full md:w-96">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search by name or code..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="py-2 pl-10 pr-4 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="text-sm text-gray-500">
+            {isLoading ? (
+              <span>Loading departments...</span>
+            ) : (
+              <span>{filteredDepartments.length} department{filteredDepartments.length !== 1 ? 's' : ''} found</span>
+            )}
           </div>
         </div>
       </div>
 
+      {/* Department Listing */}
       {isLoading ? (
-        <div className="flex justify-center my-8">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="flex justify-center my-12">
+          <LoadingSpinner size="lg" />
         </div>
       ) : filteredDepartments.length === 0 ? (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md p-6 text-center">
-          <p className="text-gray-500">
-            {searchQuery ? 'No departments match your search.' : 'No departments found. Create your first department!'}
+        <div className="bg-white shadow-sm border border-dashed border-gray-300 rounded-lg p-12 text-center">
+          <Building className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No departments found</h3>
+          <p className="text-gray-500 max-w-md mx-auto mb-6">
+            {searchQuery 
+              ? 'No departments match your search criteria. Try a different search term.'
+              : 'You haven\'t created any departments yet. Start by adding your first department.'}
           </p>
+          {!searchQuery && (
+            <Link 
+              href="/admin/departments/new" 
+              className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Department
+            </Link>
+          )}
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+            >
+              Clear Search
+            </button>
+          )}
         </div>
       ) : (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
-            {filteredDepartments.map((department) => (
-              <li key={department._id}>
-                <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredDepartments.map((department) => (
+            <div 
+              key={department._id} 
+              className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200"
+            >
+              <div className="p-6">
+                <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900">{department.name}</h3>
-                    <p className="mt-1 text-sm text-gray-500">{department.description}</p>
-                    {department.head && (
-                      <p className="mt-1 text-sm text-gray-600">
-                        <span className="font-medium">Head:</span> {department.head.name}
-                      </p>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-1">{department.name}</h3>
+                    {department.code && (
+                      <div className="inline-block px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium mb-2">
+                        Code: {department.code}
+                      </div>
                     )}
                   </div>
-                  <div className="flex space-x-2">
-                    <Link
-                      href={`/admin/departments/edit/${department._id}`}
-                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:border-blue-700 focus:shadow-outline-blue active:bg-blue-700 transition ease-in-out duration-150"
-                    >
-                      Edit
-                    </Link>
-                    <button
-                      onClick={() => confirmDelete(department._id)}
-                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-red-600 hover:bg-red-500 focus:outline-none focus:border-red-700 focus:shadow-outline-red active:bg-red-700 transition ease-in-out duration-150"
-                    >
-                      Delete
-                    </button>
-                  </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+                <p className="mt-2 text-gray-600 text-sm line-clamp-3">{department.description}</p>
+              </div>
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between">
+                <Link
+                  href={`/admin/departments/edit/${department._id}`}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-colors duration-200"
+                >
+                  <Edit className="h-4 w-4 mr-1.5" />
+                  Edit
+                </Link>
+                <button
+                  onClick={() => confirmDelete(department._id)}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500 transition-colors duration-200"
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
               <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
             </div>
@@ -208,20 +277,26 @@ export default function AdminDepartmentManagement() {
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="sm:flex sm:items-start">
                   <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <svg className="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
+                    <AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" />
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
                     <h3 className="text-lg leading-6 font-medium text-gray-900">Delete Department</h3>
                     <div className="mt-2">
+                      {departmentToDelete && (
+                        <p className="text-sm text-gray-800 font-medium mb-2">
+                          Are you sure you want to delete "{departmentToDelete.name}"?
+                        </p>
+                      )}
                       <p className="text-sm text-gray-500">
-                        Are you sure you want to delete this department? This action cannot be undone.
+                        This action cannot be undone. This will permanently delete the department and remove all associated data.
                       </p>
                       {deleteError && (
-                        <p className="mt-2 text-sm text-red-600">
-                          {deleteError}
-                        </p>
+                        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                          <p className="text-sm text-red-700 flex items-center">
+                            <AlertTriangle className="h-4 w-4 mr-1.5 flex-shrink-0" />
+                            {deleteError}
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -230,14 +305,14 @@ export default function AdminDepartmentManagement() {
               <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button 
                   type="button" 
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200"
                   onClick={handleDelete}
                 >
                   Delete
                 </button>
                 <button 
                   type="button" 
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200"
                   onClick={cancelDelete}
                 >
                   Cancel

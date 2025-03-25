@@ -83,7 +83,33 @@ export async function GET(request) {
     const departments = await Department.find(query)
       .sort({ createdAt: -1 });
     
-    return NextResponse.json(departments);
+    // Process data to ensure stable format for SSR and client
+    const processedDepartments = departments.map(department => {
+      // Convert Mongoose document to plain object
+      const plainDepartment = department.toObject ? department.toObject() : { ...department };
+      
+      // Ensure createdBy is consistently formatted
+      if (plainDepartment.createdBy) {
+        plainDepartment.createdBy = plainDepartment.createdBy.toString();
+      }
+      
+      // Convert _id to string to ensure stable format
+      if (plainDepartment._id) {
+        plainDepartment._id = plainDepartment._id.toString();
+      }
+      
+      // Ensure code is always a string
+      plainDepartment.code = plainDepartment.code || '';
+      
+      // Ensure name is always a string
+      plainDepartment.name = plainDepartment.name || '';
+      
+      return plainDepartment;
+    });
+    
+    console.log(`API: Returning ${processedDepartments.length} departments`);
+    
+    return NextResponse.json(processedDepartments);
   } catch (error) {
     console.error('Error fetching departments:', error);
     return NextResponse.json(

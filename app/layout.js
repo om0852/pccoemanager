@@ -4,6 +4,7 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import { getServerSession } from "next-auth";
 import { NextAuthProvider } from "@/providers/NextAuthProvider";
 import { authOptions } from "./api/auth/[...nextauth]/route";
+import LayoutControl from "@/components/LayoutControl";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +31,10 @@ export default async function RootLayout({ children }) {
       >
         <NextAuthProvider session={session}>
           <AuthProvider>
-            {children}
+            <LayoutControl>
+              {/* Client-side rendering will determine if navbar should be shown */}
+              {children}
+            </LayoutControl>
           </AuthProvider>
         </NextAuthProvider>
       </body>

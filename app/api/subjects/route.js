@@ -102,10 +102,14 @@ export async function GET(request) {
     const departmentId = searchParams.get('department');
     const semester = searchParams.get('semester');
     const year = searchParams.get('year');
+    const populate = searchParams.get('populate');
     
     console.log(`API: Subjects request from ${session.user.email} (${session.user.role})`);
     if (departmentId) {
       console.log(`API: Filtering by department ID: ${departmentId}`);
+    }
+    if (populate) {
+      console.log(`API: Populating relationships: ${populate}`);
     }
     
     const query = {};
@@ -172,12 +176,78 @@ export async function GET(request) {
     console.log('API: Final subjects query:', JSON.stringify(query));
     
     // Find subjects
-    const subjects = await Subject.find(query)
+    let subjectsQuery = Subject.find(query)
       .sort({ department: 1, year: 1, semester: 1, name: 1 });
     
-    console.log(`API: Returning ${subjects.length} subjects`);
+    // Populate relationships if requested
+    if (populate) {
+      const fieldsToPopulate = populate.split(',');
+      
+      if (fieldsToPopulate.includes('department')) {
+        subjectsQuery = subjectsQuery.populate('department', 'name code');
+      }
+      
+      if (fieldsToPopulate.includes('teachers')) {
+        subjectsQuery = subjectsQuery.populate('teachers', 'name email');
+      }
+      
+      if (fieldsToPopulate.includes('createdBy')) {
+        subjectsQuery = subjectsQuery.populate('createdBy', 'name email');
+      }
+    }
     
-    return NextResponse.json(subjects);
+    const subjects = await subjectsQuery;
+    
+    // Process data to ensure stable format for SSR and client
+    const processedSubjects = subjects.map(subject => {
+      // Convert Mongoose document to plain object
+      const plainSubject = subject.toObject ? subject.toObject() : { ...subject };
+      
+      // Ensure department is always populated or has consistent format
+      if (plainSubject.department && typeof plainSubject.department === 'object') {
+        plainSubject.department = {
+          _id: plainSubject.department._id.toString(),
+          name: plainSubject.department.name || '',
+          code: plainSubject.department.code || '',
+        };
+      }
+      
+      // Ensure teachers array is consistently formatted
+      if (Array.isArray(plainSubject.teachers)) {
+        plainSubject.teachers = plainSubject.teachers.map(teacher => {
+          if (typeof teacher === 'object') {
+            return {
+              _id: teacher._id.toString(),
+              name: teacher.name || '',
+              email: teacher.email || '',
+            };
+          }
+          return teacher.toString();
+        });
+      } else {
+        plainSubject.teachers = [];
+      }
+      
+      // Ensure createdBy is always populated or has consistent format
+      if (plainSubject.createdBy && typeof plainSubject.createdBy === 'object') {
+        plainSubject.createdBy = {
+          _id: plainSubject.createdBy._id.toString(),
+          name: plainSubject.createdBy.name || '',
+          email: plainSubject.createdBy.email || '',
+        };
+      }
+      
+      // Convert _id to string to ensure stable format
+      if (plainSubject._id) {
+        plainSubject._id = plainSubject._id.toString();
+      }
+      
+      return plainSubject;
+    });
+    
+    console.log(`API: Returning ${processedSubjects.length} subjects`);
+    
+    return NextResponse.json(processedSubjects);
   } catch (error) {
     console.error('Error fetching subjects:', error);
     return NextResponse.json(
