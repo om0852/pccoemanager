@@ -284,7 +284,7 @@ export default function AdminDepartmentManagement() {
                     <div className="mt-2">
                       {departmentToDelete && (
                         <p className="text-sm text-gray-800 font-medium mb-2">
-                          Are you sure you want to delete "{departmentToDelete.name}"?
+                          Are you sure you want to delete &quot;{departmentToDelete.name}&quot;?
                         </p>
                       )}
                       <p className="text-sm text-gray-500">

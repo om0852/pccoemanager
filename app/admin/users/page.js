@@ -439,7 +439,7 @@ export default function AdminUsersPage() {
                     <div className="mt-3">
                       {userToDelete && (
                         <p className="text-sm text-gray-800 font-medium mb-3">
-                          Are you sure you want to delete "{userToDelete.name}"?
+                          Are you sure you want to delete &quot;{userToDelete.name}&quot;?
                         </p>
                       )}
                       <p className="text-sm text-gray-500">

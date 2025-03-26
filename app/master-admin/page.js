@@ -101,7 +101,7 @@ export default function MasterAdminDashboard() {
               <div className="ml-3">
                 <p className="text-sm text-yellow-700">
                   Note: The account <strong>salunkeom474@gmail.com</strong> is not currently set as a master admin. 
-                  You can add this account using the "Admin Users" section.
+                  You can add this account using the &quot;Admin Users&quot; section.
                 </p>
               </div>
             </div>

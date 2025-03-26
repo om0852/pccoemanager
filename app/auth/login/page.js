@@ -109,7 +109,7 @@ export default function LoginPage() {
 
         <div className="mt-8 text-center text-gray-600 text-sm">
           <p>
-            Contact your department admin if you don't have an account or need help with login.
+            Contact your department admin if you don&apos;t have an account or need help with login.
           </p>
         </div>
       </div>

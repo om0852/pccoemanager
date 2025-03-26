@@ -153,7 +153,7 @@ export default function ManageContent() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Manage Your Content</h1>
           <p className="mt-1 text-sm text-gray-500">
-            View, edit, and delete content you've uploaded
+            View, edit, and delete content you&apos;ve uploaded
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
@@ -182,7 +182,7 @@ export default function ManageContent() {
       ) : content.length === 0 ? (
         <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 text-center">
           <p className="text-gray-500">
-            You haven't uploaded any content yet. Click the button above to add your first content item.
+            You haven&apos;t uploaded any content yet. Click the button above to add your first content item.
           </p>
         </div>
       ) : (
