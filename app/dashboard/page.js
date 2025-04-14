@@ -249,6 +249,29 @@ export default function Dashboard() {
     </>
   );
 
+  const renderStudentDashboard = () => (
+    <>
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <QuickActionCard
+            title="Access Student Portal"
+            description="View and download course materials, notes, and assignments"
+            icon={BookOpen}
+            linkTo="/student"
+            primary={true}
+          />
+          <QuickActionCard
+            title="Manage Your Profile"
+            description="Update your profile information and preferences"
+            icon={Settings}
+            linkTo="/profile"
+          />
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div>
       <div className="bg-white shadow rounded-lg p-6 mb-8">
@@ -257,11 +280,13 @@ export default function Dashboard() {
           {user?.role === 'master-admin' && 'You have access to all administrative features of the College Portal.'}
           {user?.role === 'admin' && 'You have access to your department\'s administrative features.'}
           {user?.role === 'teacher' && 'You can manage your course content and view your assigned subjects.'}
+          {user?.role === 'student' && 'Welcome to your student dashboard. Access your course materials and resources here.'}
         </p>
       </div>
 
       {(user?.role === 'master-admin' || user?.role === 'admin') && renderAdminDashboard()}
       {user?.role === 'teacher' && renderTeacherDashboard()}
+      {user?.role === 'student' && renderStudentDashboard()}
     </div>
   );
 } 

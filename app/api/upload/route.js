@@ -79,17 +79,24 @@ export async function POST(request) {
       );
     }
 
-    // Generate a unique filename
+    // Generate a unique filename while preserving the original extension
     const timestamp = Date.now();
     const originalName = file.name;
     const extension = originalName.split('.').pop();
     const filename = `${contentType}/${timestamp}-${Math.random().toString(36).substring(2)}.${extension}`;
 
     try {
-      // Upload to Vercel Blob Storage
+      // Upload to Vercel Blob Storage with metadata
       const blob = await put(filename, file, {
         access: 'public',
-        addRandomSuffix: false // We already add timestamp and random string
+        addRandomSuffix: false,
+        contentType: file.type,
+        contentDisposition: `attachment; filename="${originalName}"`,
+        metadata: {
+          originalName,
+          contentType: file.type,
+          uploadedBy: session.user.email
+        }
       });
 
       // Return the blob URL and metadata

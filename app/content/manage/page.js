@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Download, Edit, Trash, Search, X, Play } from 'lucide-react';
 
 // Helper function to format dates safely
 const formatDate = (dateString) => {
@@ -68,6 +69,15 @@ export default function ManageContent() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteError, setDeleteError] = useState('');
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    search: '',
+    contentType: '',
+    startDate: '',
+    endDate: '',
+    sortBy: 'newest' // 'newest' or 'oldest'
+  });
   
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -135,6 +145,68 @@ export default function ManageContent() {
     }
   };
 
+  const handleDownload = async (fileUrl, originalFilename) => {
+    try {
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      
+      // Create a temporary link element
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = originalFilename; // Use the original filename
+      
+      // Append to document, click, and cleanup
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download file. Please try again.');
+    }
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      contentType: '',
+      startDate: '',
+      endDate: '',
+      sortBy: 'newest'
+    });
+  };
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const filteredContent = content.filter(item => {
+    // Search filter
+    const matchesSearch = filters.search === '' || 
+      item.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+      item.description?.toLowerCase().includes(filters.search.toLowerCase());
+
+    // Content type filter
+    const matchesType = filters.contentType === '' || item.contentType === filters.contentType;
+
+    // Date filter
+    const itemDate = new Date(item.createdAt);
+    const matchesStartDate = !filters.startDate || itemDate >= new Date(filters.startDate);
+    const matchesEndDate = !filters.endDate || itemDate <= new Date(filters.endDate);
+
+    return matchesSearch && matchesType && matchesStartDate && matchesEndDate;
+  }).sort((a, b) => {
+    // Sort by date
+    const dateA = new Date(a.createdAt);
+    const dateB = new Date(b.createdAt);
+    return filters.sortBy === 'newest' ? dateB - dateA : dateA - dateB;
+  });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -163,6 +235,87 @@ export default function ManageContent() {
         </div>
       </div>
 
+      {/* Filter section */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Search input */}
+          <div className="relative">
+            <input
+              type="text"
+              name="search"
+              value={filters.search}
+              onChange={handleFilterChange}
+              placeholder="Search by title..."
+              className="block w-full rounded-md border-gray-300 pl-10 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          </div>
+
+          {/* Content type filter */}
+          <div>
+            <select
+              name="contentType"
+              value={filters.contentType}
+              onChange={handleFilterChange}
+              className="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            >
+              <option value="">All Types</option>
+              <option value="notes">Notes</option>
+              <option value="video">Video</option>
+              <option value="assignment">Assignment</option>
+              <option value="questionPaper">Question Paper</option>
+              <option value="answerPaper">Answer Paper</option>
+            </select>
+          </div>
+
+          {/* Date range filters */}
+          <div>
+            <input
+              type="date"
+              name="startDate"
+              value={filters.startDate}
+              onChange={handleFilterChange}
+              className="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              placeholder="Start Date"
+            />
+          </div>
+          <div>
+            <input
+              type="date"
+              name="endDate"
+              value={filters.endDate}
+              onChange={handleFilterChange}
+              className="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              placeholder="End Date"
+            />
+          </div>
+
+          {/* Sort order */}
+          <div>
+            <select
+              name="sortBy"
+              value={filters.sortBy}
+              onChange={handleFilterChange}
+              className="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Reset filters button */}
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={resetFilters}
+            className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <X className="h-4 w-4 mr-1.5" />
+            Reset Filters
+          </button>
+        </div>
+      </div>
+
       {successMessage && (
         <div className="mb-4 p-4 text-sm text-green-700 bg-green-100 rounded-lg">
           {successMessage}
@@ -179,10 +332,12 @@ export default function ManageContent() {
         <div className="flex justify-center my-8">
           <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      ) : content.length === 0 ? (
+      ) : filteredContent.length === 0 ? (
         <div className="bg-white shadow overflow-hidden sm:rounded-lg p-6 text-center">
           <p className="text-gray-500">
-            You haven&apos;t uploaded any content yet. Click the button above to add your first content item.
+            {content.length === 0 
+              ? "You haven't uploaded any content yet. Click the button above to add your first content item."
+              : "No content matches your current filters."}
           </p>
         </div>
       ) : (
@@ -208,15 +363,15 @@ export default function ManageContent() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {content.map((item) => (
+              {filteredContent.map((item) => (
                 <tr key={item._id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{item.title}</div>
                     <div className="text-sm text-gray-500 truncate max-w-xs">{item.description}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getContentTypeColor(item.type)}`}>
-                      {formatContentType(item.type)}
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getContentTypeColor(item.contentType)}`}>
+                      {formatContentType(item.contentType)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -227,23 +382,44 @@ export default function ManageContent() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-3">
-                      <a
-                        href={`/api/content/download/${item._id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                        download
-                      >
-                        Download
-                      </a>
+                      {item.contentType === 'video' ? (
+                        <>
+                          <Link
+                            href={`/content/view/${item._id}`}
+                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                          >
+                            <Play className="h-4 w-4 mr-1.5" />
+                            Watch
+                          </Link>
+                          <button
+                            onClick={() => handleDownload(item.fileUrl, item.filename || `${item.title}.${item.fileUrl.split('.').pop()}`)}
+                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            <Download className="h-4 w-4 mr-1.5" />
+                            Download
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleDownload(item.fileUrl, item.filename || `${item.title}.${item.fileUrl.split('.').pop()}`)}
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <Download className="h-4 w-4 mr-1.5" />
+                          Download
+                        </button>
+                      )}
                       <Link
                         href={`/content/edit/${item._id}`}
-                        className="text-indigo-600 hover:text-indigo-900"
+                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
+                        <Edit className="h-4 w-4 mr-1.5" />
                         Edit
                       </Link>
                       <button
                         onClick={() => confirmDelete(item._id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                       >
+                        <Trash className="h-4 w-4 mr-1.5" />
                         Delete
                       </button>
                     </div>

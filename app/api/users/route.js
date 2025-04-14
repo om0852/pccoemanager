@@ -34,7 +34,7 @@ export async function POST(request) {
     
     // Validate role permissions
     // Only master-admin can create master-admin users
-    if (data.role === 'master-admin') {
+    if (data.role === 'master-admin' && session.user.role !== 'master-admin') {
       return NextResponse.json(
         { error: 'Cannot create master admin users' },
         { status: 403 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, Download, ArrowLeft, FileText, Video, BookOpen } from 'lucide-react';
+import { Search, Download, ArrowLeft, FileText, Video, BookOpen, Play } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 // Helper function to format dates
@@ -28,80 +28,140 @@ const contentTypeColors = {
   'Assignment': 'bg-purple-100 text-purple-800'
 };
 
+// Get content type badge color
+const getContentTypeColor = (type) => {
+  switch (type) {
+    case 'notes':
+      return 'bg-blue-100 text-blue-800';
+    case 'video':
+      return 'bg-purple-100 text-purple-800';
+    case 'assignment':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'questionPaper':
+      return 'bg-red-100 text-red-800';
+    case 'answerPaper':
+      return 'bg-green-100 text-green-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+// Format content type for display
+const formatContentType = (type) => {
+  switch (type) {
+    case 'notes':
+      return 'Notes';
+    case 'video':
+      return 'Video';
+    case 'assignment':
+      return 'Assignment';
+    case 'questionPaper':
+      return 'Question Paper';
+    case 'answerPaper':
+      return 'Answer Paper';
+    default:
+      return type;
+  }
+};
+
 export default function StudentPortal() {
   const [departments, setDepartments] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [chapters, setChapters] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [semesters, setSemesters] = useState([]);
+  const [years, setYears] = useState([]);
   const [content, setContent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Filter states
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedSemester, setSelectedSemester] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
   const [selectedContentType, setSelectedContentType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchDepartments();
+    fetchStudentData();
     fetchContent();
   }, []);
 
   useEffect(() => {
     if (selectedDepartment) {
-      fetchSubjects();
+      // Update subjects when department changes
+      const dept = departments.find(d => d._id === selectedDepartment);
+      setSubjects(dept ? dept.subjects : []);
+      setTeachers(dept ? dept.teachers : []);
     } else {
       setSubjects([]);
+      setTeachers([]);
       setSelectedSubject('');
     }
-  }, [selectedDepartment]);
+  }, [selectedDepartment, departments]);
 
-  const fetchDepartments = async () => {
-    try {
-      const response = await fetch('/api/departments');
-      if (!response.ok) throw new Error('Failed to fetch departments');
-      const data = await response.json();
-      setDepartments(data);
-    } catch (err) {
-      setError('Error loading departments');
-      console.error(err);
+  useEffect(() => {
+    if (selectedSubject) {
+      // Update chapters when subject changes
+      const dept = departments.find(d => d._id === selectedDepartment);
+      const subject = dept?.subjects.find(s => s._id === selectedSubject);
+      setChapters(subject ? subject.chapters : []);
+    } else {
+      setChapters([]);
     }
-  };
+  }, [selectedSubject, selectedDepartment, departments]);
 
-  const fetchSubjects = async () => {
+  const fetchStudentData = async () => {
     try {
-      const response = await fetch(`/api/subjects?department=${selectedDepartment}`);
-      if (!response.ok) throw new Error('Failed to fetch subjects');
-      const data = await response.json();
-      setSubjects(data);
-    } catch (err) {
-      setError('Error loading subjects');
-      console.error(err);
-    }
-  };
-
-  const fetchContent = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/chapters');
-      if (!response.ok) throw new Error('Failed to fetch content');
-      const data = await response.json();
-      setContent(data);
       setError('');
+      setLoading(true);
+      const response = await fetch('/api/student/data');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch student data');
+      }
+      
+      const data = await response.json();
+      setDepartments(data.departments);
+      setSemesters(data.semesters);
+      setYears(data.years);
     } catch (err) {
-      setError('Error loading content');
-      console.error(err);
+      console.error('Error loading student data:', err);
+      setError('Unable to load student data. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchContent = async () => {
+    try {
+      const response = await fetch('/api/content/public');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch content');
+      }
+      
+      const data = await response.json();
+      setContent(data);
+    } catch (err) {
+      console.error('Error loading content:', err);
+      setError('Error loading content. Please try again later.');
+    }
+  };
+
   const filteredContent = content.filter(item => {
-    const matchesDepartment = !selectedDepartment || item.subject?.department?._id === selectedDepartment;
+    const matchesDepartment = !selectedDepartment || item.subject?.department === selectedDepartment;
     const matchesSubject = !selectedSubject || item.subject?._id === selectedSubject;
-    const matchesContentType = !selectedContentType || item.type === selectedContentType;
+    const matchesSemester = !selectedSemester || item.subject?.semester === parseInt(selectedSemester);
+    const matchesYear = !selectedYear || item.subject?.year === parseInt(selectedYear);
+    const matchesContentType = !selectedContentType || item.contentType === selectedContentType;
     const matchesSearch = !searchQuery || 
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesDepartment && matchesSubject && matchesContentType && matchesSearch;
+    return matchesDepartment && matchesSubject && matchesSemester && 
+           matchesYear && matchesContentType && matchesSearch;
   });
 
   return (
@@ -116,7 +176,7 @@ export default function StudentPortal() {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-8">
         <select
           value={selectedDepartment}
           onChange={(e) => setSelectedDepartment(e.target.value)}
@@ -141,14 +201,38 @@ export default function StudentPortal() {
         </select>
 
         <select
+          value={selectedSemester}
+          onChange={(e) => setSelectedSemester(e.target.value)}
+          className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+        >
+          <option value="">All Semesters</option>
+          {semesters.map(semester => (
+            <option key={semester} value={semester}>Semester {semester}</option>
+          ))}
+        </select>
+
+        <select
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(e.target.value)}
+          className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+        >
+          <option value="">All Years</option>
+          {years.map(year => (
+            <option key={year} value={year}>Year {year}</option>
+          ))}
+        </select>
+
+        <select
           value={selectedContentType}
           onChange={(e) => setSelectedContentType(e.target.value)}
           className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
         >
           <option value="">All Types</option>
-          <option value="Notes">Notes</option>
-          <option value="Video">Video</option>
-          <option value="Assignment">Assignment</option>
+          <option value="notes">Notes</option>
+          <option value="video">Video</option>
+          <option value="assignment">Assignment</option>
+          <option value="questionPaper">Question Paper</option>
+          <option value="answerPaper">Answer Paper</option>
         </select>
 
         <div className="relative">
@@ -176,57 +260,76 @@ export default function StudentPortal() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredContent.map((item) => {
-            const ContentTypeIcon = contentTypeIcons[item.type] || FileText;
-            const typeColorClass = contentTypeColors[item.type] || 'bg-gray-100 text-gray-800';
-
-            return (
-              <div
-                key={item._id}
-                className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
-              >
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${typeColorClass}`}>
-                        <ContentTypeIcon className="w-3 h-3 mr-1" />
-                        {item.type}
-                      </span>
-                    </div>
-                    <span className="text-sm text-gray-500">
-                      {formatDate(item.createdAt)}
+          {filteredContent.map((item) => (
+            <div
+              key={item._id}
+              className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
+            >
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getContentTypeColor(item.contentType)}`}>
+                      {formatContentType(item.contentType)}
                     </span>
                   </div>
+                  <span className="text-sm text-gray-500">
+                    {formatDate(item.createdAt)}
+                  </span>
+                </div>
 
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {item.title}
-                  </h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {item.title}
+                </h3>
 
-                  {item.description && (
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                      {item.description}
-                    </p>
-                  )}
+                {item.description && (
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                    {item.description}
+                  </p>
+                )}
 
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="text-sm text-gray-500">
-                      {item.subject?.name}
-                    </div>
-                    {item.fileUrl && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-gray-500">
+                    {item.subject?.name}
+                    {item.subject?.semester && (
+                      <span className="ml-1 text-gray-400">
+                        • Sem {item.subject.semester}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex space-x-2">
+                    {item.contentType === 'video' ? (
+                      <>
+                        <Link
+                          href={`/content/view/${item._id}`}
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        >
+                          <Play className="h-4 w-4 mr-1.5" />
+                          Watch
+                        </Link>
+                        <a
+                          href={item.fileUrl}
+                          download
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <Download className="h-4 w-4 mr-1.5" />
+                          Download
+                        </a>
+                      </>
+                    ) : (
                       <a
                         href={item.fileUrl}
                         download
                         className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
-                        <Download className="w-4 h-4 mr-1" />
+                        <Download className="h-4 w-4 mr-1.5" />
                         Download
                       </a>
                     )}
                   </div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>
