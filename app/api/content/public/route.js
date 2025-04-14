@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db';
-import Content from '@/models/Content';
+import { Content } from '@/lib/models';
 
 // @desc    Get all public content
 // @route   GET /api/content/public
