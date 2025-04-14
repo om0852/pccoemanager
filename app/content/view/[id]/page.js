@@ -10,6 +10,11 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
+// Helper function to check if file is PDF
+const isPDF = (fileUrl) => {
+  return fileUrl?.toLowerCase().endsWith('.pdf');
+};
+
 // Helper function to get badge color based on content type
 const getContentTypeColor = (contentType) => {
   const colors = {
@@ -202,22 +207,32 @@ export default function ViewContent({ params }) {
             </div>
           </div>
           
-          {content.fileUrl && content.contentType === 'video' && (
+          {content.fileUrl && (
             <div className="border-t border-gray-200 pt-5 mt-5">
               <h3 className="text-lg font-medium text-gray-900 mb-3">Preview</h3>
-              <div className="aspect-w-16 aspect-h-9">
-                <video 
-                  controls 
-                  className="w-full h-full rounded-lg object-cover" 
-                  src={content.fileUrl}
-                >
-                  Your browser does not support the video tag.
-                </video>
-              </div>
+              {content.contentType === 'video' ? (
+                <div className="aspect-w-16 aspect-h-9">
+                  <video 
+                    controls 
+                    className="w-full h-full rounded-lg object-cover" 
+                    src={content.fileUrl}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+              ) : isPDF(content.fileUrl) ? (
+                <div className="aspect-w-16 aspect-h-9 min-h-[600px]">
+                  <iframe
+                    src={content.fileUrl}
+                    className="w-full h-full rounded-lg border border-gray-200"
+                    title="PDF Viewer"
+                  >
+                    This browser does not support PDFs. Please download to view.
+                  </iframe>
+                </div>
+              ) : null}
             </div>
           )}
-          
-          {/* You can add more content type specific previews here */}
         </div>
       </div>
     </div>

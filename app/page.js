@@ -1,6 +1,41 @@
 import Link from 'next/link';
 import { BookOpen, Users, FileText, Building, GraduationCap, UserSquare2 } from 'lucide-react';
 
+// Helper component for feature cards
+function FeatureCard({ icon, title, description }) {
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <div className="bg-blue-100 rounded-lg p-3 inline-block mb-4">
+        {icon}
+      </div>
+      <h3 className="text-xl font-semibold mb-2">{title}</h3>
+      <p className="text-gray-600">{description}</p>
+    </div>
+  );
+}
+
+// Helper component for user type cards
+function UserTypeCard({ icon, title, description, link, linkText }) {
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <div className="bg-blue-100 rounded-lg p-3 inline-block mb-4">
+        {icon}
+      </div>
+      <h3 className="text-xl font-semibold mb-2">{title}</h3>
+      <p className="text-gray-600 mb-4">{description}</p>
+      <Link
+        href={link}
+        className="inline-flex items-center text-blue-600 hover:text-blue-800"
+      >
+        {linkText}
+        <svg className="w-4 h-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+        </svg>
+      </Link>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen">
@@ -8,10 +43,9 @@ export default function LandingPage() {
       <header className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
         <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="text-xl font-bold">College Portal</div>
-          <div className="space-x-4">
-            <Link href="/auth/login" className="hover:text-blue-200">Staff Login</Link>
-            <Link href="/student" className="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50">
-              Student Portal
+          <div>
+            <Link href="/auth/login" className="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50">
+              Login
             </Link>
           </div>
         </nav>
@@ -24,12 +58,9 @@ export default function LandingPage() {
             <p className="text-xl mb-8 text-blue-100">
               Access educational resources, course materials, and stay connected with your academic journey.
             </p>
-            <div className="space-x-4">
-              <Link href="/student" className="bg-white text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50">
-                Browse Resources
-              </Link>
-              <Link href="/auth/login" className="bg-transparent border-2 border-white text-white px-6 py-3 rounded-lg font-medium hover:bg-white/10">
-                Staff Portal
+            <div>
+              <Link href="/auth/login" className="bg-white text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50">
+                Login to Portal
               </Link>
             </div>
           </div>
@@ -64,14 +95,7 @@ export default function LandingPage() {
       <section className="py-20">
         <div className="container mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-12">Who It&apos;s For</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <UserTypeCard
-              icon={<GraduationCap className="h-8 w-8" />}
-              title="Students"
-              description="Access course materials, assignments, and educational resources."
-              link="/student"
-              linkText="Student Portal"
-            />
+          <div className="grid md:grid-cols-2 gap-8">
             <UserTypeCard
               icon={<UserSquare2 className="h-8 w-8" />}
               title="Teachers"
@@ -93,19 +117,12 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-6">
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 gap-8">
             <div>
               <h3 className="text-lg font-bold mb-4">College Portal</h3>
               <p className="text-gray-400">
                 Your comprehensive platform for academic resource management and learning.
               </p>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold mb-4">Quick Links</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><Link href="/student" className="hover:text-white">Student Portal</Link></li>
-                <li><Link href="/auth/login" className="hover:text-white">Staff Login</Link></li>
-              </ul>
             </div>
             <div>
               <h3 className="text-lg font-bold mb-4">Contact</h3>
@@ -120,31 +137,6 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
-    </div>
-  );
-}
-
-// Feature Card Component
-function FeatureCard({ icon, title, description }) {
-  return (
-    <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-      <div className="text-blue-600 mb-4">{icon}</div>
-      <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-gray-600">{description}</p>
-    </div>
-  );
-}
-
-// User Type Card Component
-function UserTypeCard({ icon, title, description, link, linkText }) {
-  return (
-    <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 hover:border-blue-500 transition-colors">
-      <div className="text-blue-600 mb-4">{icon}</div>
-      <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-gray-600 mb-4">{description}</p>
-      <Link href={link} className="text-blue-600 hover:text-blue-700 font-medium">
-        {linkText} →
-      </Link>
     </div>
   );
 }

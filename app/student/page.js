@@ -19,7 +19,12 @@ const formatDate = (dateString) => {
 const contentTypeIcons = {
   'Notes': FileText,
   'Video': Video,
-  'Assignment': BookOpen
+  'Assignment': BookOpen,
+  'notes': FileText,
+  'video': Video,
+  'assignment': BookOpen,
+  'questionPaper': FileText,
+  'answerPaper': FileText
 };
 
 const contentTypeColors = {
@@ -64,13 +69,16 @@ const formatContentType = (type) => {
   }
 };
 
+// Helper function to check if file is PDF
+const isPDF = (fileUrl) => {
+  return fileUrl?.toLowerCase().endsWith('.pdf');
+};
+
 export default function StudentPortal() {
   const [departments, setDepartments] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [chapters, setChapters] = useState([]);
   const [teachers, setTeachers] = useState([]);
-  const [semesters, setSemesters] = useState([]);
-  const [years, setYears] = useState([]);
   const [content, setContent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -78,8 +86,6 @@ export default function StudentPortal() {
   // Filter states
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedSemester, setSelectedSemester] = useState('');
-  const [selectedYear, setSelectedYear] = useState('');
   const [selectedContentType, setSelectedContentType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -124,8 +130,6 @@ export default function StudentPortal() {
       
       const data = await response.json();
       setDepartments(data.departments);
-      setSemesters(data.semesters);
-      setYears(data.years);
     } catch (err) {
       console.error('Error loading student data:', err);
       setError('Unable to load student data. Please try again later.');
@@ -153,15 +157,12 @@ export default function StudentPortal() {
   const filteredContent = content.filter(item => {
     const matchesDepartment = !selectedDepartment || item.subject?.department === selectedDepartment;
     const matchesSubject = !selectedSubject || item.subject?._id === selectedSubject;
-    const matchesSemester = !selectedSemester || item.subject?.semester === parseInt(selectedSemester);
-    const matchesYear = !selectedYear || item.subject?.year === parseInt(selectedYear);
     const matchesContentType = !selectedContentType || item.contentType === selectedContentType;
     const matchesSearch = !searchQuery || 
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesDepartment && matchesSubject && matchesSemester && 
-           matchesYear && matchesContentType && matchesSearch;
+    return matchesDepartment && matchesSubject && matchesContentType && matchesSearch;
   });
 
   return (
@@ -176,7 +177,7 @@ export default function StudentPortal() {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <select
           value={selectedDepartment}
           onChange={(e) => setSelectedDepartment(e.target.value)}
@@ -197,28 +198,6 @@ export default function StudentPortal() {
           <option value="">All Subjects</option>
           {subjects.map(subject => (
             <option key={subject._id} value={subject._id}>{subject.name}</option>
-          ))}
-        </select>
-
-        <select
-          value={selectedSemester}
-          onChange={(e) => setSelectedSemester(e.target.value)}
-          className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-        >
-          <option value="">All Semesters</option>
-          {semesters.map(semester => (
-            <option key={semester} value={semester}>Semester {semester}</option>
-          ))}
-        </select>
-
-        <select
-          value={selectedYear}
-          onChange={(e) => setSelectedYear(e.target.value)}
-          className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-        >
-          <option value="">All Years</option>
-          {years.map(year => (
-            <option key={year} value={year}>Year {year}</option>
           ))}
         </select>
 
@@ -290,11 +269,6 @@ export default function StudentPortal() {
                 <div className="flex items-center justify-between mt-4">
                   <div className="text-sm text-gray-500">
                     {item.subject?.name}
-                    {item.subject?.semester && (
-                      <span className="ml-1 text-gray-400">
-                        • Sem {item.subject.semester}
-                      </span>
-                    )}
                   </div>
                   <div className="flex space-x-2">
                     {item.contentType === 'video' ? (
@@ -306,6 +280,26 @@ export default function StudentPortal() {
                           <Play className="h-4 w-4 mr-1.5" />
                           Watch
                         </Link>
+                        <a
+                          href={item.fileUrl}
+                          download
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <Download className="h-4 w-4 mr-1.5" />
+                          Download
+                        </a>
+                      </>
+                    ) : isPDF(item.fileUrl) ? (
+                      <>
+                        <a
+                          href={item.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        >
+                          <FileText className="h-4 w-4 mr-1.5" />
+                          View
+                        </a>
                         <a
                           href={item.fileUrl}
                           download
